@@ -1,19 +1,32 @@
 ﻿using LoadBalancer.Core.Channel;
+using LoadBalancer.Core.Factory;
+using LoadBalancer.Infrastructure.Config;
+using System.Collections.Immutable;
 
 namespace LoadBalancer.Core.Pool;
 
 public sealed class ChannelPool
 {
-    private readonly List<TcpChannel> _channels;
+    private ImmutableArray<ManagedChannel> _channels
+        = ImmutableArray<ManagedChannel>.Empty;
 
-    public ChannelPool(IEnumerable<TcpChannel> channels)
+    public IReadOnlyList<ManagedChannel> Channels => _channels;
+
+    public void Reload(IEnumerable<ChannelOptions> options)
     {
-        _channels = channels.ToList();
+        if (options == null)
+            throw new ArgumentNullException(nameof(options));
+
+        _channels = options
+            .Select(opt =>
+                new ManagedChannel(
+                    ChannelFactory.Create(opt)))
+            .ToImmutableArray();
     }
 
-    // فقط کانال‌هایی که واقعاً قابل ارسال‌اند
-    public IReadOnlyList<TcpChannel> Routable =>
-        _channels
-            .Where(c => c.State == ChannelState.Healthy)
-            .ToList();
+    // 👇 چیزی که Routing لازم دارد
+    public IEnumerable<ManagedChannel> Routable()
+        => _channels.Where(c => c.State == ChannelState.Healthy);
 }
+
+

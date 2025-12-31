@@ -1,4 +1,5 @@
-﻿using System.Collections.Concurrent;
+﻿using LoadBalancer.Core.Transport;
+using System.Collections.Concurrent;
 
 namespace LoadBalancer.Core.Channel;
 
@@ -14,8 +15,7 @@ public sealed class StickyRouter
     {
         if (_map.TryGetValue(terminalId, out var channel))
         {
-            if (channel.State == ChannelState.Healthy)
-                return channel;
+
 
             _map.TryRemove(terminalId, out _);
         }

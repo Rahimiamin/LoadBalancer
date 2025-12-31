@@ -3,5 +3,6 @@
 public enum ChannelState
 {
     Healthy,
+    Unhealthy,
     Down
 }

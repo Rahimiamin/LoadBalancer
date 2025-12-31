@@ -1,56 +1,31 @@
-﻿using LoadBalancer.Core.Channel;
-using LoadBalancer.Core.Idempotency;
-using LoadBalancer.Core.LoadBalancing;
-using LoadBalancer.Core.Pool;
-using LoadBalancer.Core.Protocol;
+﻿using LoadBalancer.Core.Pool;
+using LoadBalancer.Core.Transport;
+using System.Threading.Channels;
 
 namespace LoadBalancer.Core.Routing;
 
 public sealed class RoutingEngine
 {
     private readonly ChannelPool _pool;
-    private readonly ILoadBalancingStrategy _strategy;
-    private readonly StickyRouter _sticky;
-    private readonly IdempotencyStore _idempotency;
-    public RoutingEngine(
-        ChannelPool pool,
-        ILoadBalancingStrategy strategy,
-        StickyRouter sticky,
-        IdempotencyStore idempotency)
+
+    public RoutingEngine(ChannelPool pool)
     {
         _pool = pool;
-        _strategy = strategy;
-        _sticky = sticky;
-        _idempotency = idempotency;
     }
 
-    public async ValueTask<byte[]> RouteAsync(
-        string terminalId,
-        string traceNumber,
+    public async Task<byte[]> RouteAsync(
         byte[] payload,
         CancellationToken ct)
     {
-        var key = new IdempotencyKey(terminalId, traceNumber);
+        var routable = _pool.Routable();
+        using var e = routable.GetEnumerator();
 
-        if (_idempotency.TryGet(key, out var cached))
-            return cached;
+        if (!e.MoveNext())
+            throw new Exception("No healthy channels");
 
-        var candidates = _pool.Routable;
-        if (candidates.Count == 0)
-            throw new Exception("No routable channels");
+        var channel = e.Current;
 
-        var channel = _sticky.Resolve(
-            terminalId,
-            candidates,
-            _strategy.Select);
 
-        var response = await channel.SendAsync(payload, ct);
-
-        _idempotency.Store(key, response);
-        return response;
+        return await channel.SendAsync(payload, ct);
     }
-
 }
-
-
-
