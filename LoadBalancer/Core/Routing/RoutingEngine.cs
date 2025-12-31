@@ -1,31 +1,20 @@
-﻿using LoadBalancer.Core.Pool;
-using LoadBalancer.Core.Transport;
-using System.Threading.Channels;
+﻿using LoadBalancer.Core.LoadBalancing;
 
 namespace LoadBalancer.Core.Routing;
 
 public sealed class RoutingEngine
 {
-    private readonly ChannelPool _pool;
+    private readonly ILoadBalancingStrategy _strategy;
 
-    public RoutingEngine(ChannelPool pool)
+    public RoutingEngine(ILoadBalancingStrategy strategy)
     {
-        _pool = pool;
+        _strategy = strategy;
     }
 
-    public async Task<byte[]> RouteAsync(
-        byte[] payload,
-        CancellationToken ct)
+    public async Task<byte[]> RouteAsync(byte[] payload, CancellationToken ct)
     {
-        var routable = _pool.Routable();
-        using var e = routable.GetEnumerator();
-
-        if (!e.MoveNext())
-            throw new Exception("No healthy channels");
-
-        var channel = e.Current;
-
-
+        var channel = _strategy.Select();
         return await channel.SendAsync(payload, ct);
     }
 }
+

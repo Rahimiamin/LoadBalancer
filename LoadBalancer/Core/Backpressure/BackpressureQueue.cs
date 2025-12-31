@@ -1,26 +1,43 @@
-﻿using System.Threading.Channels;
+﻿using System.Collections.Concurrent;
 
-namespace LoadBalancer.Core.Backpressure;
+namespace LoadBalancer.Core.Channel;
 
 public sealed class BackpressureQueue
 {
-    private readonly Channel<Func<Task>> _queue;
+    private readonly SemaphoreSlim _semaphore;
+    private readonly ConcurrentQueue<(byte[] payload, TaskCompletionSource<byte[]> tcs)> _queue
+        = new();
 
-    public BackpressureQueue(int capacity)
+    public BackpressureQueue(int maxConcurrent)
     {
-        _queue = System.Threading.Channels.Channel.CreateBounded<Func<Task>>(
-            new BoundedChannelOptions(capacity)
-            {
-                FullMode = BoundedChannelFullMode.DropWrite
-            });
+        _semaphore = new SemaphoreSlim(maxConcurrent, maxConcurrent);
     }
 
-    public bool TryEnqueue(Func<Task> work)
-        => _queue.Writer.TryWrite(work);
-
-    public async Task RunAsync(CancellationToken ct)
+    public async Task<byte[]> EnqueueAsync(byte[] payload, Func<byte[], Task<byte[]>> sendFunc)
     {
-        await foreach (var work in _queue.Reader.ReadAllAsync(ct))
-            await work();
+        var tcs = new TaskCompletionSource<byte[]>();
+        _queue.Enqueue((payload, tcs));
+
+        await _semaphore.WaitAsync();
+        if (_queue.TryDequeue(out var item))
+        {
+            try
+            {
+                var result = await sendFunc(item.payload);
+                item.tcs.SetResult(result);
+                return result;
+            }
+            catch (Exception ex)
+            {
+                item.tcs.SetException(ex);
+                throw;
+            }
+            finally
+            {
+                _semaphore.Release();
+            }
+        }
+
+        return await tcs.Task;
     }
 }

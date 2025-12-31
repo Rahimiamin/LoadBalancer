@@ -14,15 +14,13 @@ public sealed class ManagedChannel
         Transport = transport;
     }
 
-    public async Task<byte[]> SendAsync(
-        byte[] payload,
-        CancellationToken ct)
+    public async Task<byte[]> SendAsync(byte[] payload, CancellationToken ct)
     {
         if (State != ChannelState.Healthy)
             throw new Exception("Channel is not healthy");
 
-        var sw = Stopwatch.StartNew();
         Interlocked.Increment(ref Metrics.InFlight);
+        var sw = Stopwatch.StartNew();
 
         try
         {
@@ -33,7 +31,7 @@ public sealed class ManagedChannel
         catch
         {
             Metrics.Failure++;
-            State = ChannelState.Unhealthy;
+            MarkUnhealthy();
             throw;
         }
         finally
@@ -44,6 +42,7 @@ public sealed class ManagedChannel
         }
     }
 
-    public void MarkDown() => State = ChannelState.Down;
     public void MarkHealthy() => State = ChannelState.Healthy;
+    public void MarkUnhealthy() => State = ChannelState.Unhealthy;
+    public void MarkDown() => State = ChannelState.Down;
 }

@@ -60,4 +60,9 @@ public sealed class TcpChannel
 
         _stream = _client.GetStream();
     }
+
+    internal void TestConnection()
+    {
+        throw new NotImplementedException();
+    }
 }

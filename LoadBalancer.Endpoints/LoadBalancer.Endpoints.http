@@ -1,0 +1,6 @@
+@LoadBalancer.Endpoints_HostAddress = http://localhost:5146
+
+GET {{LoadBalancer.Endpoints_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

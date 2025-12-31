@@ -1,9 +1,11 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
-VisualStudioVersion = 17.14.36429.23 d17.14
+VisualStudioVersion = 17.14.36429.23
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LoadBalancer", "LoadBalancer\LoadBalancer.csproj", "{5FD1C874-0C2D-4BBF-ADF7-7720A63005B3}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LoadBalancer.Endpoints", "LoadBalancer.Endpoints\LoadBalancer.Endpoints.csproj", "{AB22A8D4-7649-45B8-92EE-11B8FEC61021}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LoadBalancer", "LoadBalancer\LoadBalancer.csproj", "{5B06AD68-1EC9-422E-A511-BBD362E50E17}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -11,10 +13,14 @@ Global
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{5FD1C874-0C2D-4BBF-ADF7-7720A63005B3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{5FD1C874-0C2D-4BBF-ADF7-7720A63005B3}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{5FD1C874-0C2D-4BBF-ADF7-7720A63005B3}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{5FD1C874-0C2D-4BBF-ADF7-7720A63005B3}.Release|Any CPU.Build.0 = Release|Any CPU
+		{AB22A8D4-7649-45B8-92EE-11B8FEC61021}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{AB22A8D4-7649-45B8-92EE-11B8FEC61021}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{AB22A8D4-7649-45B8-92EE-11B8FEC61021}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{AB22A8D4-7649-45B8-92EE-11B8FEC61021}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5B06AD68-1EC9-422E-A511-BBD362E50E17}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5B06AD68-1EC9-422E-A511-BBD362E50E17}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5B06AD68-1EC9-422E-A511-BBD362E50E17}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5B06AD68-1EC9-422E-A511-BBD362E50E17}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
