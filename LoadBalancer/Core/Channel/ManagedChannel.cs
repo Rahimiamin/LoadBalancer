@@ -7,7 +7,15 @@ public sealed class ManagedChannel
 {
     public TcpChannel Transport { get; }
     public ChannelState State { get; private set; } = ChannelState.Healthy;
+    public CircuitState CircuitState { get; private set; } = CircuitState.Closed;
+
     public ChannelMetrics Metrics { get; } = new();
+
+    private const int FailureThreshold = 3;                 // چند خطا → Open
+    private static readonly TimeSpan OpenTimeout = TimeSpan.FromSeconds(5);
+
+    private DateTime _lastFailureUtc;
+    private int _consecutiveFailures;
 
     public ManagedChannel(TcpChannel transport)
     {
@@ -16,8 +24,8 @@ public sealed class ManagedChannel
 
     public async Task<byte[]> SendAsync(byte[] payload, CancellationToken ct)
     {
-        if (State != ChannelState.Healthy)
-            throw new Exception("Channel is not healthy");
+        if (!CanSend())
+            throw new Exception("Channel is not routable");
 
         Interlocked.Increment(ref Metrics.InFlight);
         var sw = Stopwatch.StartNew();
@@ -25,13 +33,13 @@ public sealed class ManagedChannel
         try
         {
             var res = await Transport.SendAsync(payload, ct);
-            Metrics.Success++;
+
+            OnSuccess();
             return res;
         }
         catch
         {
-            Metrics.Failure++;
-            MarkUnhealthy();
+            OnFailure();
             throw;
         }
         finally
@@ -42,7 +50,62 @@ public sealed class ManagedChannel
         }
     }
 
-    public void MarkHealthy() => State = ChannelState.Healthy;
-    public void MarkUnhealthy() => State = ChannelState.Unhealthy;
-    public void MarkDown() => State = ChannelState.Down;
+    // ---------------- Routing Logic ----------------
+
+    public bool CanSend()
+    {
+        if (State != ChannelState.Healthy)
+            return false;
+
+        if (CircuitState == CircuitState.Open)
+        {
+            if (DateTime.UtcNow - _lastFailureUtc > OpenTimeout)
+            {
+                CircuitState = CircuitState.HalfOpen;
+                return true; // اجازه تست
+            }
+
+            return false;
+        }
+
+        return true;
+    }
+
+    // ---------------- Circuit Transitions ----------------
+
+    private void OnSuccess()
+    {
+        Metrics.Success++;
+        _consecutiveFailures = 0;
+
+        if (CircuitState == CircuitState.HalfOpen)
+        {
+            CircuitState = CircuitState.Closed;
+        }
+    }
+
+    private void OnFailure()
+    {
+        Metrics.Failure++;
+        _consecutiveFailures++;
+        _lastFailureUtc = DateTime.UtcNow;
+
+        if (_consecutiveFailures >= FailureThreshold)
+        {
+            CircuitState = CircuitState.Open;
+        }
+    }
+
+    // ---------------- Heartbeat Hooks ----------------
+
+    public void MarkTransportHealthy()
+    {
+        State = ChannelState.Healthy;
+    }
+
+    public void MarkDown()
+    {
+        State = ChannelState.Down;
+    }
 }
+

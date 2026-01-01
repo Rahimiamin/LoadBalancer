@@ -10,7 +10,7 @@ public sealed class ChannelPool
     private ImmutableArray<ManagedChannel> _channels = ImmutableArray<ManagedChannel>.Empty;
 
     public IEnumerable<ManagedChannel> Routable()
-        => _channels.Where(c => c.State == ChannelState.Healthy);
+        => _channels.Where(c => c.CanSend());
 
     public void Reload(IEnumerable<ChannelOptions> options)
     {
@@ -31,8 +31,9 @@ public sealed class ChannelPool
                     {
                         try
                         {
-                            ch.Transport.TestConnection(); // متد sync یا async ساده برای Ping
-                            ch.MarkHealthy();
+                            ch.Transport.TestConnection();
+                            ch.MarkTransportHealthy();
+                            Console.WriteLine($"🟢 Channel {ch.Transport.Name} recovered");
                         }
                         catch
                         {
@@ -40,10 +41,12 @@ public sealed class ChannelPool
                         }
                     }
                 }
+
                 await Task.Delay(interval, ct);
             }
         }, ct);
     }
+
 }
 
 

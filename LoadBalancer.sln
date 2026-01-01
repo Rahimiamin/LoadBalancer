@@ -7,6 +7,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LoadBalancer.Endpoints", "L
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LoadBalancer", "LoadBalancer\LoadBalancer.csproj", "{5B06AD68-1EC9-422E-A511-BBD362E50E17}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LoadBalance.TestConsole", "LoadBalance.TestConsole\LoadBalance.TestConsole.csproj", "{39FD28A5-F445-4CA5-A81A-B992143C4D2C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ConsoleApp1", "ConsoleApp1\ConsoleApp1.csproj", "{0518CA14-83DE-4704-B300-18DB907B0E56}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -21,6 +25,14 @@ Global
 		{5B06AD68-1EC9-422E-A511-BBD362E50E17}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{5B06AD68-1EC9-422E-A511-BBD362E50E17}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{5B06AD68-1EC9-422E-A511-BBD362E50E17}.Release|Any CPU.Build.0 = Release|Any CPU
+		{39FD28A5-F445-4CA5-A81A-B992143C4D2C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{39FD28A5-F445-4CA5-A81A-B992143C4D2C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{39FD28A5-F445-4CA5-A81A-B992143C4D2C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{39FD28A5-F445-4CA5-A81A-B992143C4D2C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0518CA14-83DE-4704-B300-18DB907B0E56}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0518CA14-83DE-4704-B300-18DB907B0E56}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0518CA14-83DE-4704-B300-18DB907B0E56}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0518CA14-83DE-4704-B300-18DB907B0E56}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
