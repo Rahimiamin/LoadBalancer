@@ -36,10 +36,6 @@ server6000.Start();
 server6001.Start();
 
 
-// کمی صبر کن تا سرورها بالا بیایند
-//await Task.Delay(500);
-
-
 var runtimes = new Dictionary<string, (AcquirerRuntime runtime, BackpressureQueue queue)>();
 
 var settings = configuration.GetSection("LoadBalancerSettings")
@@ -53,6 +49,7 @@ foreach (var acq in settings.Acquirers)
 
     ILoadBalancingStrategy strategy = acq.Strategy switch
     {
+        "Adaptive" => new AdaptiveStrategy(pool.Routable),
         "LeastConnections" => new LeastConnectionsStrategy(pool.Routable),
         _ => new RoundRobinStrategy(pool.Routable)
     };
@@ -65,7 +62,7 @@ foreach (var acq in settings.Acquirers)
 
 var ff = Task.Run(async () =>
 {
-    await Task.Delay(500);   // وسط Load
+    await Task.Delay(100);   // وسط Load
     server5000.Stop();        // 💥 Fail واقعی
 });
 
@@ -78,7 +75,7 @@ var swTotal = Stopwatch.StartNew();
 var tasks = Enumerable.Range(0, totalTx).Select(i =>
 {
     int txNumber = i;
-    var acqId = rand.Next(2) == 0 ? "ACQ1" : "ACQ2";
+    var acqId = "ACQ1";// rand.Next(2) == 0 ? "ACQ1" : "ACQ2";
     var payload = Encoding.UTF8.GetBytes($"Tx-{txNumber}");
     var (runtime, queue) = runtimes[acqId];
 

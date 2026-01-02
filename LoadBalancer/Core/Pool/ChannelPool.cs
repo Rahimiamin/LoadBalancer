@@ -49,27 +49,3 @@ public sealed class ChannelPool
 
 }
 
-
-//Auto Recovery کانال‌ها
-
-//می‌توانیم یک Timer ساده یا BackgroundTask برای Pool یا Engine بسازیم که کانال‌های Down یا Unhealthy را دوباره بررسی و MarkHealthy کند.
-//public void RecoverChannels()
-//    {
-//        foreach (var ch in _channels)
-//        {
-//            if (ch.State == ChannelState.Unhealthy)
-//            {
-//                // Ping ساده یا Heartbeat
-//                try
-//                {
-//                    // فرضاً متد ساده تست اتصال
-//                    ch.Transport.TestConnection();
-//                    ch.MarkHealthy();
-//                }
-//                catch
-//                {
-//                    ch.MarkDown();
-//                }
-//            }
-//        }
-//    }
