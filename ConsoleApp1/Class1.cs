@@ -10,7 +10,13 @@ using System.Threading;
 using System.Threading.Tasks;
 
 // -------------------- ENUMS --------------------
-public enum ChannelState { Healthy, Unhealthy, Down }
+public enum ChannelState
+{
+    Healthy,
+    Unhealthy,
+    Cooldown,
+    Down
+}
 
 // -------------------- METRICS --------------------
 public class ChannelMetrics
@@ -55,21 +61,28 @@ public class TcpChannel
 }
 
 // -------------------- MANAGED CHANNEL --------------------
-public class ManagedChannel
+public sealed class ManagedChannel
 {
     public TcpChannel Transport { get; }
     public ChannelState State { get; private set; } = ChannelState.Healthy;
     public ChannelMetrics Metrics { get; } = new();
+
+    private int _consecutiveFailures;
+    private DateTime _cooldownUntil;
 
     public ManagedChannel(TcpChannel transport)
     {
         Transport = transport;
     }
 
+    public bool IsRoutable =>
+        State == ChannelState.Healthy ||
+        (State == ChannelState.Cooldown && DateTime.UtcNow >= _cooldownUntil);
+
     public async Task<byte[]> SendAsync(byte[] payload, CancellationToken ct)
     {
-        if (State != ChannelState.Healthy)
-            throw new Exception("Channel is not healthy");
+        if (!IsRoutable)
+            throw new InvalidOperationException("Channel not routable");
 
         Interlocked.Increment(ref Metrics.InFlight);
         var sw = Stopwatch.StartNew();
@@ -77,13 +90,25 @@ public class ManagedChannel
         try
         {
             var res = await Transport.SendAsync(payload, ct);
+
             Metrics.Success++;
+            _consecutiveFailures = 0;
+
+            if (State == ChannelState.Cooldown)
+                MarkHealthy();
+
             return res;
         }
         catch
         {
             Metrics.Failure++;
-            MarkUnhealthy();
+            _consecutiveFailures++;
+
+            if (_consecutiveFailures >= 3)
+                MarkDown();
+            else
+                MarkUnhealthy();
+
             throw;
         }
         finally
@@ -94,10 +119,29 @@ public class ManagedChannel
         }
     }
 
-    public void MarkHealthy() => State = ChannelState.Healthy;
-    public void MarkUnhealthy() => State = ChannelState.Unhealthy;
-    public void MarkDown() => State = ChannelState.Down;
+    public void MarkHealthy()
+    {
+        State = ChannelState.Healthy;
+    }
+
+    public void MarkUnhealthy()
+    {
+        State = ChannelState.Unhealthy;
+    }
+
+    public void MarkDown()
+    {
+        State = ChannelState.Down;
+    }
+
+    public void EnterCooldown(TimeSpan cooldown)
+    {
+        State = ChannelState.Cooldown;
+        _cooldownUntil = DateTime.UtcNow.Add(cooldown);
+        _consecutiveFailures = 0;
+    }
 }
+
 
 // -------------------- CHANNEL POOL --------------------
 public class ChannelPool

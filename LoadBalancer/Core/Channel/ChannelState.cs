@@ -4,5 +4,6 @@ public enum ChannelState
 {
     Healthy,
     Unhealthy,
+    Cooldown,
     Down
 }

@@ -23,4 +23,9 @@ public sealed class TcpChannel
         return buffer;
     }
     public void TestConnection() { /* همیشه موفق */ }
+
+    internal async Task TestConnectionAsync()
+    {
+        throw new NotImplementedException();
+    }
 }

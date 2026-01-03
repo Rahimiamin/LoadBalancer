@@ -1,4 +1,5 @@
-﻿using LoadBalancer.Core.Channel;
+﻿using LoadBalancer.Core.Backpressure;
+using LoadBalancer.Core.Channel;
 using LoadBalancer.Core.LoadBalancing;
 using LoadBalancer.Core.Pool;
 using LoadBalancer.Core.Routing;
@@ -36,16 +37,16 @@ server6000.Start();
 server6001.Start();
 
 
-var runtimes = new Dictionary<string, (AcquirerRuntime runtime, BackpressureQueue queue)>();
+var runtimes = new Dictionary<string, (AcquirerRuntime runtime, AdaptiveBackpressureQueue queue)>();
 
 var settings = configuration.GetSection("LoadBalancerSettings")
                                     .Get<LoadBalancerSettings>();
-
+    var pool = new ChannelPool();
 foreach (var acq in settings.Acquirers)
 {
-    var pool = new ChannelPool();
+
     pool.Reload(acq.Channels);
-    pool.StartHeartbeat(TimeSpan.FromMilliseconds(settings.HeartbeatIntervalMs), cts.Token);
+    pool.StartHeartbeat(TimeSpan.FromMilliseconds(settings.HeartbeatIntervalMs), TimeSpan.FromMilliseconds(settings.HeartbeatIntervalMs), cts.Token);
 
     ILoadBalancingStrategy strategy = acq.Strategy switch
     {
@@ -55,64 +56,48 @@ foreach (var acq in settings.Acquirers)
     };
 
     var runtime = new AcquirerRuntime(acq.AcquirerId, pool, strategy);
-    var queue = new BackpressureQueue(settings.MaxConcurrent);
+    var queue = new AdaptiveBackpressureQueue(
+       baseConcurrency: settings.MaxConcurrent,
+       snapshot: runtime.Pool.CreateSnapshot);
 
     runtimes[acq.AcquirerId] = (runtime, queue);
-}
 
-var ff = Task.Run(async () =>
-{
-    await Task.Delay(100);   // وسط Load
-    server5000.Stop();        // 💥 Fail واقعی
-});
+    var router = new RoutingEngine(runtime.Pool, runtime.Strategy);
 
-
-// ---------------- Load Test ----------------
-var totalTx = 100; // تعداد تراکنش برای تست
-var rand = new Random();
-var swTotal = Stopwatch.StartNew();
-
-var tasks = Enumerable.Range(0, totalTx).Select(i =>
-{
-    int txNumber = i;
-    var acqId = "ACQ1";// rand.Next(2) == 0 ? "ACQ1" : "ACQ2";
-    var payload = Encoding.UTF8.GetBytes($"Tx-{txNumber}");
-    var (runtime, queue) = runtimes[acqId];
-
-    return queue.EnqueueAsync(payload, p => new RoutingEngine(runtime.Strategy).RouteAsync(p, cts.Token))
-                .ContinueWith(t =>
-                {
-                    if (t.IsCompletedSuccessfully)
-                        return $"{acqId} Tx-{txNumber} OK";
-                    else
-                        return $"{acqId} Tx-{txNumber} FAIL: {t.Exception?.GetBaseException().Message}";
-                });
-}).ToArray();
-
-
-var results = await Task.WhenAll(tasks);
-swTotal.Stop();
-
-// ---------------- Print Results ----------------
-foreach (var r in results) Console.WriteLine(r);
-
-Console.WriteLine($"\nProcessed {totalTx} transactions in {swTotal.ElapsedMilliseconds} ms");
-Console.WriteLine($"TPS ~ {totalTx / (swTotal.ElapsedMilliseconds / 1000.0):F2}");
-
-// ---------------- Print Channel Metrics ----------------
-Console.WriteLine("\n========== Channel Metrics ==========\n");
-
-foreach (var acq in runtimes)
-{
-    var runtime = acq.Value.runtime;
-    Console.WriteLine($"Acquirer: {acq.Key}");
-
-    foreach (var ch in runtime.Pool.Routable())
+    int total = 200;
+    _ = Task.Delay(200).ContinueWith(_ =>
     {
-        var m = ch.Metrics;
-        Console.WriteLine($"  Channel {ch.Transport.Name} | State: {ch.State} | Success: {m.Success} | Failure: {m.Failure} | LastLatencyMs: {m.LastLatencyMs}");
-    }
+        Console.WriteLine("### SERVER 6001 DOWN ###");
+        server6001.Stop();
+    });
+    var sw = Stopwatch.StartNew();
+
+    var tasks = Enumerable.Range(0, total)
+        .Select(i =>
+
+            queue.EnqueueAsync(
+                ct => router.RouteAsync(
+                    Encoding.UTF8.GetBytes($"TX-{i}"), ct),
+                cts.Token)
+            .ContinueWith(t =>
+            {
+
+                if (t.IsCompletedSuccessfully)
+                    Console.WriteLine($"TX-{i} OK");
+                else
+                    Console.WriteLine($"TX-{i} FAIL: {t.Exception?.GetBaseException().Message}");
+            })
+        ).ToArray();
+
+    await Task.WhenAll(tasks);
+    sw.Stop();
+
+    Console.WriteLine($"Elapsed: {sw.ElapsedMilliseconds} ms");
+    Console.WriteLine($"TPS ≈ {total / (sw.ElapsedMilliseconds / 1000.0):F2}");
+
 }
+
+
 Console.WriteLine("\n========== ACQUIRER SUMMARY ==========\n");
 
 double totalSuccess = 0;
@@ -136,8 +121,8 @@ foreach (var acq in runtimes)
         ? channels.Max(c => c.Metrics.LastLatencyMs)
         : 0;
 
-    var elapsedSec = swTotal.ElapsedMilliseconds / 1000.0;
-    double tps = elapsedSec == 0 ? 0 : success / elapsedSec;
+
+
 
     totalSuccess += success;
     totalFailure += failure;
@@ -149,8 +134,7 @@ foreach (var acq in runtimes)
         $"FAIL: {failure,3} | " +
         $"SuccessRate: {(success * 100.0 / Math.Max(1, success + failure)):F2}% | " +
         $"AvgLatency: {avgLatency,6:F1} ms | " +
-        $"MaxLatency: {maxLatency,5} ms | " +
-        $"TPS: {tps,6:F1}"
+        $"MaxLatency: {maxLatency,5} ms | " 
     );
 }
 
@@ -158,13 +142,6 @@ foreach (var acq in runtimes)
 Console.WriteLine("\n========== SYSTEM SUMMARY ==========\n");
 
 
-var totalTps = totalSuccess / (swTotal.ElapsedMilliseconds / 1000.0);
-
-Console.WriteLine($"Total TX       : {totalTx}");
-Console.WriteLine($"Total Success  : {totalSuccess}");
-Console.WriteLine($"Total Failure  : {totalFailure}");
-Console.WriteLine($"System TPS     : {totalTps:F2}");
-Console.WriteLine($"Elapsed Time   : {swTotal.ElapsedMilliseconds} ms");
 
 Console.WriteLine("END!");
 Console.ReadLine();

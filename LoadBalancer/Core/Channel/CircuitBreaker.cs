@@ -9,60 +9,54 @@ public enum CircuitState
     HalfOpen
 }
 
-public sealed class CircuitBreaker
+public class CircuitBreaker
 {
-    private int _failures;
-    private long _openedAtTicks;
-    private int _state;
-
     private readonly int _failureThreshold;
     private readonly TimeSpan _openDuration;
+
+    private int _failures;
+    private DateTime _openedAt;
+
+    public CircuitState State { get; private set; } = CircuitState.Closed;
 
     public CircuitBreaker(int failureThreshold, TimeSpan openDuration)
     {
         _failureThreshold = failureThreshold;
         _openDuration = openDuration;
-        _state = (int)CircuitState.Closed;
     }
 
     public bool AllowRequest()
     {
-        var state = (CircuitState)Volatile.Read(ref _state);
-
-        if (state == CircuitState.Closed)
-            return true;
-
-        if (state == CircuitState.Open)
+        if (State == CircuitState.Open)
         {
-            var elapsedMs =
-                (Stopwatch.GetTimestamp() - _openedAtTicks) * 1000
-                / Stopwatch.Frequency;
-
-            if (elapsedMs >= _openDuration.TotalMilliseconds)
+            if (DateTime.UtcNow - _openedAt > _openDuration)
             {
-                Interlocked.Exchange(ref _state, (int)CircuitState.HalfOpen);
+                State = CircuitState.HalfOpen;
                 return true;
             }
-
             return false;
         }
 
-        return true; // HalfOpen
+        return true;
     }
 
     public void OnSuccess()
     {
-        Interlocked.Exchange(ref _failures, 0);
-        Interlocked.Exchange(ref _state, (int)CircuitState.Closed);
+        _failures = 0;
+        State = CircuitState.Closed;
     }
 
     public void OnFailure()
     {
-        if (Interlocked.Increment(ref _failures) < _failureThreshold)
-            return;
+        _failures++;
 
-        _openedAtTicks = Stopwatch.GetTimestamp();
-        Interlocked.Exchange(ref _state, (int)CircuitState.Open);
+        if (_failures >= _failureThreshold)
+        {
+            State = CircuitState.Open;
+            _openedAt = DateTime.UtcNow;
+
+            Console.WriteLine("⚡ Circuit OPENED");
+        }
     }
 }
 

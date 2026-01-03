@@ -20,7 +20,7 @@ public sealed class LoadBalancerService
         {
             var pool = new ChannelPool();
             pool.Reload(acq.Channels);
-            pool.StartHeartbeat(TimeSpan.FromMilliseconds(settings.HeartbeatIntervalMs), ct);
+            pool.StartHeartbeat(TimeSpan.FromMilliseconds(settings.HeartbeatIntervalMs), TimeSpan.FromMilliseconds(settings.HeartbeatIntervalMs), ct);
 
             ILoadBalancingStrategy strategy = acq.Strategy switch
             {

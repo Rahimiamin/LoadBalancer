@@ -7,26 +7,16 @@ public sealed class ManagedChannel
 {
     public TcpChannel Transport { get; }
     public ChannelState State { get; private set; } = ChannelState.Healthy;
-    public CircuitState CircuitState { get; private set; } = CircuitState.Closed;
-
     public ChannelMetrics Metrics { get; } = new();
 
-    private const int FailureThreshold = 3;                 // چند خطا → Open
-    private static readonly TimeSpan OpenTimeout = TimeSpan.FromSeconds(5);
+    private double _healthScore = 100.0; // 0..100
+    private const double Alpha = 0.2;    // حافظه سیستم
 
-    private DateTime _lastFailureUtc;
-    private int _consecutiveFailures;
+    public double HealthScore => _healthScore;
 
-    public ManagedChannel(TcpChannel transport)
-    {
-        Transport = transport;
-    }
 
     public async Task<byte[]> SendAsync(byte[] payload, CancellationToken ct)
     {
-        if (!CanSend())
-            throw new Exception("Channel is not routable");
-
         Interlocked.Increment(ref Metrics.InFlight);
         var sw = Stopwatch.StartNew();
 
@@ -34,12 +24,17 @@ public sealed class ManagedChannel
         {
             var res = await Transport.SendAsync(payload, ct);
 
-            OnSuccess();
+            Metrics.Success++;
+            UpdateScore(success: true, sw.ElapsedMilliseconds);
+            MarkHealthy();
+
             return res;
         }
         catch
         {
-            OnFailure();
+            Metrics.Failure++;
+            UpdateScore(success: false, sw.ElapsedMilliseconds);
+            MarkUnhealthy();
             throw;
         }
         finally
@@ -50,62 +45,39 @@ public sealed class ManagedChannel
         }
     }
 
-    // ---------------- Routing Logic ----------------
-
-    public bool CanSend()
+    private void UpdateScore(bool success, long latencyMs)
     {
-        if (State != ChannelState.Healthy)
-            return false;
+        var penalty =
+            (!success ? 30 : 0) +
+            Math.Min(latencyMs / 10.0, 20) +
+            Metrics.InFlight * 2;
 
-        if (CircuitState == CircuitState.Open)
-        {
-            if (DateTime.UtcNow - _lastFailureUtc > OpenTimeout)
-            {
-                CircuitState = CircuitState.HalfOpen;
-                return true; // اجازه تست
-            }
+        var target = Math.Max(0, 100 - penalty);
 
-            return false;
-        }
-
-        return true;
+        _healthScore = _healthScore * (1 - Alpha) + target * Alpha;
     }
 
-    // ---------------- Circuit Transitions ----------------
+    public void MarkHealthy() => State = ChannelState.Healthy;
+    public void MarkUnhealthy() => State = ChannelState.Unhealthy;
 
-    private void OnSuccess()
+    public ManagedChannel(TcpChannel transport)
     {
-        Metrics.Success++;
+        Transport = transport;
+    }
+    public void EnterCooldown(TimeSpan cooldown)
+    {
+        State = ChannelState.Cooldown;
+        _cooldownUntil = DateTime.UtcNow.Add(cooldown);
         _consecutiveFailures = 0;
-
-        if (CircuitState == CircuitState.HalfOpen)
-        {
-            CircuitState = CircuitState.Closed;
-        }
     }
+    private int _consecutiveFailures;
+    private DateTime _cooldownUntil;
 
-    private void OnFailure()
-    {
-        Metrics.Failure++;
-        _consecutiveFailures++;
-        _lastFailureUtc = DateTime.UtcNow;
 
-        if (_consecutiveFailures >= FailureThreshold)
-        {
-            CircuitState = CircuitState.Open;
-        }
-    }
 
-    // ---------------- Heartbeat Hooks ----------------
-
-    public void MarkTransportHealthy()
-    {
-        State = ChannelState.Healthy;
-    }
-
-    public void MarkDown()
-    {
-        State = ChannelState.Down;
-    }
+    public bool IsRoutable =>
+        State == ChannelState.Healthy ||
+        (State == ChannelState.Cooldown && DateTime.UtcNow >= _cooldownUntil);
 }
+
 

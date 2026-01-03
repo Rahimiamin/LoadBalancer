@@ -11,26 +11,17 @@ public sealed class AdaptiveStrategy : ILoadBalancingStrategy
         _channels = channels;
     }
 
-    private static double Score(ManagedChannel c)
-    {
-        var latency = c.Metrics.AvgLatency > 0
-            ? c.Metrics.AvgLatency
-            : c.Metrics.LastLatencyMs;
-
-        return latency * (c.Metrics.InFlight + 1);
-    }
-
     public ManagedChannel Select()
     {
         var candidates = _channels()
-            .Where(c => c.State == ChannelState.Healthy)
+            .Where(c => c.IsRoutable)
+            .OrderByDescending(c => c.HealthScore)
             .ToList();
 
-        if (candidates.Count == 0)
+        if (!candidates.Any())
             throw new Exception("No healthy channels available");
 
-        return candidates
-            .OrderBy(c => Score(c))
-            .First();
+        return candidates[0];
     }
 }
+
