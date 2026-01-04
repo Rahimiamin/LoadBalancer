@@ -64,11 +64,11 @@ foreach (var acq in settings.Acquirers)
 
     var router = new RoutingEngine(runtime.Pool, runtime.Strategy);
 
-    int total = 200;
-    _ = Task.Delay(200).ContinueWith(_ =>
+    int total = 400;
+    _ = Task.Delay(100).ContinueWith(_ =>
     {
-        Console.WriteLine("### SERVER 6001 DOWN ###");
-        server6001.Stop();
+        Console.WriteLine("### SERVER 5000 DOWN ###");
+        server5000.Stop();
     });
     var sw = Stopwatch.StartNew();
 

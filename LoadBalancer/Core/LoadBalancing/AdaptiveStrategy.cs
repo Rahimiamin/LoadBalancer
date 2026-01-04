@@ -15,7 +15,7 @@ public sealed class AdaptiveStrategy : ILoadBalancingStrategy
     {
         var candidates = _channels()
             .Where(c => c.IsRoutable)
-            .OrderByDescending(c => c.HealthScore)
+            .OrderByDescending(c => c.EffectiveScore)
             .ToList();
 
         if (!candidates.Any())

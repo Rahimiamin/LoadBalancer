@@ -12,7 +12,7 @@ public sealed class ChannelPool
         ImmutableArray<ManagedChannel>.Empty;
 
     public IEnumerable<ManagedChannel> Routable()
-        => _channels.Where(c => c.IsRoutable);
+        => _channels.Where(c => c.CanRoute && c.State == ChannelState.Healthy );
 
     public void Reload(IEnumerable<ChannelOptions> options)
     {
