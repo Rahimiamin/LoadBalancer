@@ -53,37 +53,34 @@ public sealed class ChannelPool
     }
     public BackpressureSnapshot CreateSnapshot()
     {
-        var channels = _channels;
+        var channels = Routable().ToList();
 
-        if (channels.Length == 0)
-            return new BackpressureSnapshot(1, 0, 0, 0);
+        var inFlight = channels.Sum(c => c.Metrics.InFlight);
+        var avgLatency = channels.Any()
+            ? channels.Average(c => c.Metrics.AvgLatency)
+            : 0;
 
-        var inflight = channels.Sum(c => c.Metrics.InFlight);
-        var latency = channels
-            .Where(c => c.Metrics.LastLatencyMs > 0)
-            .Select(c => c.Metrics.LastLatencyMs)
-            .DefaultIfEmpty(0)
-            .Average();
+        var total = channels.Sum(c => c.Metrics.Success + c.Metrics.Failure);
+        var failureRate = total > 0
+            ? channels.Sum(c => c.Metrics.Failure) / (double)total
+            : 0;
 
-        var success = channels.Sum(c => c.Metrics.Success);
-        var failure = channels.Sum(c => c.Metrics.Failure);
-
-        var failureRate = success + failure == 0
-            ? 0
-            : (double)failure / (success + failure);
-
-        var inflightRatio = inflight / (double)(channels.Length * 10);
-        var latencyRatio = latency / 1000.0;
-
-        var pressure = Math.Clamp(
-            inflightRatio + latencyRatio + failureRate,
-            0, 1);
+        var pressure =
+            Math.Min(1.0,
+                (avgLatency / 500.0) * 0.4 +
+                failureRate * 0.4 +
+                Math.Min(1.0, inFlight / 50.0) * 0.2);
 
         return new BackpressureSnapshot(
             pressure,
-            (int)inflight,
-            latency,
+            inFlight,
+            avgLatency,
             failureRate);
+    }
+
+    public IEnumerable<ManagedChannel> All()
+    {
+        return _channels;
     }
 }
 

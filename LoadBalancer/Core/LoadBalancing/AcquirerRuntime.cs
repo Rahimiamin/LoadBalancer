@@ -1,9 +1,11 @@
 ﻿using LoadBalancer.Core.Pool;
+using LoadBalancer.Core.RateLimiter;
 
 namespace LoadBalancer.Core.LoadBalancing;
 
 public sealed class AcquirerRuntime
 {
+    public AcquirerRateLimiter Limiter { get; }
     public string AcquirerId { get; }
     public ChannelPool Pool { get; }
     public ILoadBalancingStrategy Strategy { get; }
@@ -17,4 +19,6 @@ public sealed class AcquirerRuntime
         Pool = pool;
         Strategy = strategy;
     }
+
+    
 }

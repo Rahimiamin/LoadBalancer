@@ -32,8 +32,15 @@ public sealed class ManagedChannel
 
     public double EffectiveScore =>
         (CanRoute && IsRoutable)
-            ? Weight * (_healthScore / 100.0)
+            ? HealthScore * Weight / (Metrics.InFlight + 1)
             : 0;
+
+    public double Score =>
+    (Circuit.State == CircuitState.Open ? 0 :
+     100
+     - Metrics.P95Latency() * 0.5
+     - Metrics.InFlight * 5
+     - Metrics.Failure * 10);
 
     public ManagedChannel(TcpChannel transport)
     {
@@ -56,34 +63,24 @@ public sealed class ManagedChannel
         {
             var res = await Transport.SendAsync(payload, ct);
 
-            sw.Stop();
-            Metrics.LastLatencyMs = sw.ElapsedMilliseconds;
             Metrics.Success++;
+            Circuit.OnSuccess();
 
             UpdateScore(success: true, sw.ElapsedMilliseconds);
-
-            Circuit.OnSuccess();
-            _consecutiveFailures = 0;
-
             return res;
         }
         catch
         {
-            sw.Stop();
             Metrics.Failure++;
-
-            UpdateScore(success: false, latencyMs: 1000);
             Circuit.OnFailure();
 
-            _consecutiveFailures++;
-
-            if (_consecutiveFailures >= 3)
-                EnterCooldown(TimeSpan.FromSeconds(5));
-
+            UpdateScore(success: false, sw.ElapsedMilliseconds);
             throw;
         }
         finally
         {
+            sw.Stop();
+            Metrics.LastLatencyMs = sw.ElapsedMilliseconds;
             Interlocked.Decrement(ref Metrics.InFlight);
         }
     }

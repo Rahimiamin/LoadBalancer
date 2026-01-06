@@ -2,7 +2,7 @@
 
 namespace LoadBalancer.Core.LoadBalancing;
 
-public sealed class AdaptiveStrategy : ILoadBalancingStrategy
+public class AdaptiveStrategy : ILoadBalancingStrategy
 {
     private readonly Func<IEnumerable<ManagedChannel>> _channels;
 
@@ -13,15 +13,11 @@ public sealed class AdaptiveStrategy : ILoadBalancingStrategy
 
     public ManagedChannel Select()
     {
-        var candidates = _channels()
-            .Where(c => c.IsRoutable)
-            .OrderByDescending(c => c.EffectiveScore)
-            .ToList();
-
-        if (!candidates.Any())
-            throw new Exception("No healthy channels available");
-
-        return candidates[0];
+        return _channels()
+            .Where(c => c.Score > 0)
+            .OrderByDescending(c => c.Score)
+            .FirstOrDefault();
     }
 }
+
 

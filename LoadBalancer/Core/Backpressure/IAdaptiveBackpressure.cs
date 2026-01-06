@@ -54,11 +54,6 @@ public sealed class AdaptiveBackpressureQueue : IAdaptiveBackpressure
     {
         var snap = _snapshot();
 
-  //      Console.WriteLine(
-  //$"[BP SNAPSHOT] Pressure={snap.Pressure} " +
-  //$"Latency={snap.AvgLatency:F1}ms " +
-  //$"FailRate={snap.FailureRate:F2}");
-
         var pressure = snap.Pressure;
 
         int newLimit;

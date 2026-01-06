@@ -14,7 +14,7 @@ public sealed class LoadBalancerService
     public Dictionary<string, AcquirerRuntime> Runtimes { get; } = new();
     public Dictionary<string, BackpressureQueue> Queues { get; } = new();
 
-    public LoadBalancerService(LoadBalancerSettings settings, CancellationToken ct)
+    public LoadBalancerService(Loadbalancersettings settings, CancellationToken ct)
     {
         foreach (var acq in settings.Acquirers)
         {

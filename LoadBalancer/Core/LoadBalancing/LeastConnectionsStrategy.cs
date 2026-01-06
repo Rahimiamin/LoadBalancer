@@ -8,20 +8,24 @@ public sealed class LeastConnectionsStrategy : ILoadBalancingStrategy
 
     public LeastConnectionsStrategy(Func<IEnumerable<ManagedChannel>> source)
     {
-        _source = source ?? throw new ArgumentNullException(nameof(source));
+        _source = source;
     }
 
     public ManagedChannel Select()
     {
-        // گرفتن snapshot کانال‌های سالم
-        var channels = _source().ToList();
+        var channels = _source()
+            .Where(c => c.IsRoutable)
+            .OrderBy(c => c.Metrics.InFlight)
+            .ToList();
 
         if (!channels.Any())
-            throw new Exception("No healthy channels available");
+            throw new Exception("No routable channels");
 
-        // انتخاب کانال با کمترین تراکنش در حال اجرا
-        return channels.OrderBy(c => c.Metrics.InFlight).First();
+
+
+        return channels[0];
     }
 }
+
 
 

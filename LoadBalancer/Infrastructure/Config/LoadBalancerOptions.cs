@@ -8,12 +8,14 @@ public sealed class LoadBalancerOptions
 
 public sealed class RoutingOptions
 {
-    public List<AcquirerOptions> Acquirers { get; set; } = new();
+    public List<AcquirerOptions> Acquirers { get; set; }
 }
 public class AcquirerOptions
 {
     public string AcquirerId { get; set; }
-    public List<ChannelOptions> Channels { get; set; } = new();
+    public int MaxTPS { get; set; }
+    public int Weight { get; set; }
+    public List<ChannelOptions> Channels { get; set; }
     public string Strategy { get; set; } = "RoundRobin"; // یا "LeastConnections"
 }
 
@@ -25,9 +27,22 @@ public class ChannelOptions
     public bool Enabled { get; set; } = true;
 }
 
-public class LoadBalancerSettings
+
+
+
+public class Loadbalancersettings
 {
     public int MaxConcurrent { get; set; } = 100;
     public int HeartbeatIntervalMs { get; set; } = 5000;
-    public List<AcquirerOptions> Acquirers { get; set; } = new();
+    public List<Acquirer> Acquirers { get; set; }
 }
+
+public class Acquirer
+{
+    public string AcquirerId { get; set; }
+    public int MaxTPS { get; set; }
+    public float Weight { get; set; }
+    public string Strategy { get; set; }
+    public List<ChannelOptions> Channels { get; set; }
+}
+
