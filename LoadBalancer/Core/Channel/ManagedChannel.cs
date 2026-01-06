@@ -1,5 +1,7 @@
-﻿using LoadBalancer.Core.Transport;
+﻿using LoadBalancer.Core.Retry;
+using LoadBalancer.Core.Transport;
 using System.Diagnostics;
+using System.Net.Sockets;
 
 namespace LoadBalancer.Core.Channel;
 
@@ -51,38 +53,52 @@ public sealed class ManagedChannel
             openDuration: TimeSpan.FromSeconds(10));
     }
 
+    static bool IsTransient(Exception ex)
+    {
+        return ex is TimeoutException
+            || ex is SocketException
+            || ex.InnerException is SocketException;
+    }
+
+    private readonly RetryPolicy _retry =
+     new RetryPolicy(3, TimeSpan.FromMilliseconds(50));
+
     public async Task<byte[]> SendAsync(byte[] payload, CancellationToken ct)
     {
         if (!Circuit.AllowRequest())
             throw new InvalidOperationException("Circuit Open");
 
-        Interlocked.Increment(ref Metrics.InFlight);
-        var sw = Stopwatch.StartNew();
+        return await _retry.ExecuteAsync(
+            async () =>
+            {
+                Interlocked.Increment(ref Metrics.InFlight);
+                var sw = Stopwatch.StartNew();
 
-        try
-        {
-            var res = await Transport.SendAsync(payload, ct);
+                try
+                {
+                    var res = await Transport.SendAsync(payload, ct);
 
-            Metrics.Success++;
-            Circuit.OnSuccess();
-
-            UpdateScore(success: true, sw.ElapsedMilliseconds);
-            return res;
-        }
-        catch
-        {
-            Metrics.Failure++;
-            Circuit.OnFailure();
-
-            UpdateScore(success: false, sw.ElapsedMilliseconds);
-            throw;
-        }
-        finally
-        {
-            sw.Stop();
-            Metrics.LastLatencyMs = sw.ElapsedMilliseconds;
-            Interlocked.Decrement(ref Metrics.InFlight);
-        }
+                    Metrics.Success++;
+                    Circuit.OnSuccess();
+                    return res;
+                }
+                catch
+                {
+                    Metrics.Failure++;
+                    Circuit.OnFailure();
+                    throw;
+                }
+                finally
+                {
+                    sw.Stop();
+                    Metrics.LastLatencyMs = sw.ElapsedMilliseconds;
+                    Interlocked.Decrement(ref Metrics.InFlight);
+                }
+            },
+            shouldRetry: ex =>
+                IsTransient(ex) &&
+                Circuit.State != CircuitState.Open,
+            ct);
     }
 
     private void UpdateScore(bool success, long latencyMs)

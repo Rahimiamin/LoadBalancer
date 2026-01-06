@@ -9,7 +9,7 @@ using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 var settings = builder.Configuration.GetSection("LoadBalancerSettings")
-                                    .Get<LoadBalancerSettings>();
+                                    .Get<Loadbalancersettings>();
 
 var cts = new CancellationTokenSource();
 var runtimes = new Dictionary<string, (AcquirerRuntime runtime, AdaptiveBackpressureQueue queue)>();

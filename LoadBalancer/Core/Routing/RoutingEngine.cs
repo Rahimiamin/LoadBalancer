@@ -14,14 +14,38 @@ public sealed class RoutingEngine
         _strategy = strategy;
     }
 
-    public async Task<byte[]> RouteAsync(byte[] payload, CancellationToken ct)
+    public async Task<byte[]> RouteAsync(
+        byte[] payload,
+        CancellationToken ct)
     {
-        var channels = _pool.Routable().ToList();
-        if (channels.Count == 0)
+        var snapshot = _pool.Routable().ToList();
+
+        if (!snapshot.Any())
             throw new Exception("No healthy channels");
 
-        var channel = _strategy.Select();
-        return await channel.SendAsync(payload, ct);
+        var primary = _strategy.Select();
+
+        try
+        {
+            return await primary.SendAsync(payload, ct);
+        }
+        catch
+        {
+            Console.WriteLine($"⚠️ Primary {primary.Transport.Name} failed");
+
+            var fallback = snapshot
+                .Where(c => c != primary && c.CanRoute)
+                .OrderByDescending(c => c.HealthScore)
+                .FirstOrDefault();
+
+            if (fallback == null)
+                throw;
+
+            Console.WriteLine(
+                $"🔁 Failover retry → {fallback.Transport.Name}");
+
+            return await fallback.SendAsync(payload, ct);
+        }
     }
 }
 
