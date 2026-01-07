@@ -2,6 +2,7 @@
 using LoadBalancer.Core.Channel;
 using LoadBalancer.Core.LoadBalancing;
 using LoadBalancer.Core.Pool;
+using LoadBalancer.Core.Retry;
 using LoadBalancer.Core.Routing;
 using LoadBalancer.Infrastructure.Config;
 using System.Diagnostics;
@@ -39,9 +40,10 @@ foreach (var acq in settings.Acquirers)
 // نمونه ارسال تراکنش
 var payload = Encoding.UTF8.GetBytes("Hello ACQ1");
 var (runtime1, queue1) = runtimes["ACQ1"];
-var result = await queue1.EnqueueAsync(p => new RoutingEngine(pool, runtime1.Strategy).RouteAsync(payload, cts.Token), cts.Token);
+var retryBudget = new RetryBudget(maxRetries: 15);
+var result = await queue1.EnqueueAsync(p => new RoutingEngine(pool, runtime1.Strategy, retryBudget).RouteAsync(payload, cts.Token), cts.Token);
 
-var router = new RoutingEngine(runtime1.Pool, runtime1.Strategy);
+var router = new RoutingEngine(runtime1.Pool, runtime1.Strategy, retryBudget);
 
 int total = 200;
 var sw = Stopwatch.StartNew();

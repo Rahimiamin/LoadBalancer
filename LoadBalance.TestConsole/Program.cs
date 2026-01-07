@@ -2,6 +2,7 @@
 using LoadBalancer.Core.Channel;
 using LoadBalancer.Core.LoadBalancing;
 using LoadBalancer.Core.Pool;
+using LoadBalancer.Core.Retry;
 using LoadBalancer.Core.Routing;
 using LoadBalancer.Infrastructure.Config;
 using Microsoft.Extensions.Configuration;
@@ -97,7 +98,8 @@ var monitorTask = Task.Run(async () =>
 /* ================= LOAD TEST ================= */
 
 var (runtime1, queue1) = runtimes["ACQ1"];
-var router = new RoutingEngine(runtime1.Pool, runtime1.Strategy);
+var retryBudget = new RetryBudget(maxRetries: 15);
+var router = new RoutingEngine(runtime1.Pool, runtime1.Strategy, retryBudget);
 
 int total = 300;
 var sw = Stopwatch.StartNew();

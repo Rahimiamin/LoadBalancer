@@ -1,6 +1,7 @@
 using LoadBalancer.Core.Backpressure;
 using LoadBalancer.Core.LoadBalancing;
 using LoadBalancer.Core.Pool;
+using LoadBalancer.Core.Retry;
 using LoadBalancer.Core.Routing;
 using LoadBalancer.Infrastructure.Config;
 using Microsoft.AspNetCore.Builder;
@@ -52,8 +53,8 @@ builder.Services.AddSingleton(provider =>
         "RoundRobin" => new RoundRobinStrategy(pool.Routable),
         _ => new AdaptiveStrategy(pool.Routable)
     };
-
-    return new RoutingEngine(pool, strategy);
+    var retryBudget = new RetryBudget(maxRetries: 15);
+    return new RoutingEngine(pool, strategy, retryBudget);
 });
 
 builder.Services.AddSingleton<IAdaptiveBackpressure>(provider =>

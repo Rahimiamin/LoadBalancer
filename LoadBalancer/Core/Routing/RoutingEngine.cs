@@ -1,5 +1,6 @@
 ﻿using LoadBalancer.Core.LoadBalancing;
 using LoadBalancer.Core.Pool;
+using LoadBalancer.Core.Retry;
 
 namespace LoadBalancer.Core.Routing;
 
@@ -7,20 +8,24 @@ public sealed class RoutingEngine
 {
     private readonly ChannelPool _pool;
     private readonly ILoadBalancingStrategy _strategy;
+    private readonly RetryBudget _retryBudget;
 
-    public RoutingEngine(ChannelPool pool, ILoadBalancingStrategy strategy)
+    public RoutingEngine(
+        ChannelPool pool,
+        ILoadBalancingStrategy strategy,
+        RetryBudget retryBudget)
     {
         _pool = pool;
         _strategy = strategy;
+        _retryBudget = retryBudget;
     }
 
     public async Task<byte[]> RouteAsync(
         byte[] payload,
         CancellationToken ct)
     {
-        var snapshot = _pool.Routable().ToList();
-
-        if (!snapshot.Any())
+        var channels = _pool.Routable().ToList();
+        if (!channels.Any())
             throw new Exception("No healthy channels");
 
         var primary = _strategy.Select();
@@ -31,9 +36,13 @@ public sealed class RoutingEngine
         }
         catch
         {
-            Console.WriteLine($"⚠️ Primary {primary.Transport.Name} failed");
+            if (!_retryBudget.TryConsume())
+            {
+                Console.WriteLine("⛔ Retry budget exhausted");
+                throw;
+            }
 
-            var fallback = snapshot
+            var fallback = channels
                 .Where(c => c != primary && c.CanRoute)
                 .OrderByDescending(c => c.HealthScore)
                 .FirstOrDefault();
@@ -42,7 +51,8 @@ public sealed class RoutingEngine
                 throw;
 
             Console.WriteLine(
-                $"🔁 Failover retry → {fallback.Transport.Name}");
+                $"🔁 Retry → {fallback.Transport.Name} | " +
+                $"Budget: {_retryBudget.Used}/{_retryBudget.Max}");
 
             return await fallback.SendAsync(payload, ct);
         }
